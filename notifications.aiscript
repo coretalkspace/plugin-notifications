@@ -1,0 +1,102 @@
+/// @ 0.12.4
+### {
+  name: "Fediverse Notifications",
+  version: "0.0.5",
+  permissions: ["write:notifications"]
+}
+
+@buildHooksWs(url) {
+  let proto =
+    url.startsWith("https://") ? "wss://" :
+    url.startsWith("http://") ? "ws://" :
+    "wss://"
+
+  let noProto = url
+    .replace("https://", "")
+    .replace("http://", "")
+
+  let host = noProto.split("/")[0]
+
+  return proto + "hooks." + host
+}
+
+@withOk(url) {
+  if (url.incl("?")) {
+    return url + "&ok=1"
+  } else {
+    return url + "?ok=1"
+  }
+}
+
+let username = USER_USERNAME
+let ws = WebSocket(buildHooksWs(SERVER_URL) + "/ws/" + username)
+
+@safeParse(raw) {
+  try {
+    return Json:parse(raw)
+  } catch err {
+    return null
+  }
+}
+
+@showNotify(msg) {
+  if (msg.body == null) return
+
+  Mk:api("notifications/create", {
+    header: msg.header ?? "Fediverse"
+    body: msg.body
+    icon: msg.icon ?? null   // ← no fallback anymore
+  })
+}
+
+@showToast(msg) {
+  if (msg.body != null) {
+    Mk:toast(msg.body)
+  } elif (msg.text != null) {
+    Mk:toast(msg.text)
+  }
+}
+
+@showDialog(msg) {
+  if (msg.title == null) return
+  if (msg.body == null) return
+
+  Mk:dialog(
+    msg.title
+    msg.body
+    msg.kind ?? "info"
+  )
+}
+
+@showConfirm(msg) {
+  if (msg.title == null) return
+  if (msg.body == null) return
+  if (msg.url == null) return
+
+  let ok = Mk:confirm(
+    msg.title
+    msg.body
+    msg.kind ?? "question"
+  )
+
+  if (ok) {
+    Plugin:open_url(withOk(msg.url))
+  }
+}
+
+ws.onMessage = @(raw) {
+  let msg = safeParse(raw)
+
+  if (msg == null) return
+  if (msg.type == null) return
+
+  if (msg.type == "notify") {
+    showNotify(msg)
+  } elif (msg.type == "toast") {
+    showToast(msg)
+  } elif (msg.type == "dialog") {
+    showDialog(msg)
+  } elif (msg.type == "confirm") {
+    showConfirm(msg)
+  }
+}
