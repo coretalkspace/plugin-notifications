@@ -1,23 +1,20 @@
-/// @ 0.12.4
+/// @0.12.4
 ### {
-  name: "Fediverse Notifications",
-  version: "0.0.5",
+  name: "Fediverse Notifications"
+  version: "1.0.0"
+  author: "CoreTalk"
+  description: "Receives websocket messages from hooks.<host> and shows them as Misskey toasts, notifications, dialogs, or confirms."
   permissions: ["write:notifications"]
 }
 
 @buildHooksWs(url) {
-  let proto =
-    url.startsWith("https://") ? "wss://" :
-    url.startsWith("http://") ? "ws://" :
-    "wss://"
-
-  let noProto = url
-    .replace("https://", "")
-    .replace("http://", "")
-
-  let host = noProto.split("/")[0]
-
-  return proto + "hooks." + host
+  if (url.startsWith("https://")) {
+    let noProto = url.replace("https://", "")
+    let host = noProto.split("/")[0]
+    return "wss://hooks." + host
+  } else {
+    return nil
+  }
 }
 
 @withOk(url) {
@@ -28,75 +25,90 @@
   }
 }
 
-let username = USER_USERNAME
-let ws = WebSocket(buildHooksWs(SERVER_URL) + "/ws/" + username)
+let hooksUrl = buildHooksWs(SERVER_URL)
 
-@safeParse(raw) {
-  try {
-    return Json:parse(raw)
-  } catch err {
-    return null
-  }
-}
+if (hooksUrl != nil) {
+  let ws = WebSocket(hooksUrl + "/ws/" + USER_USERNAME)
 
-@showNotify(msg) {
-  if (msg.body == null) return
+  ws.onMessage = @(raw) {
+    let msg = Json:parse(raw)
 
-  Mk:api("notifications/create", {
-    header: msg.header ?? "Fediverse"
-    body: msg.body
-    icon: msg.icon ?? null   // ← no fallback anymore
-  })
-}
+    if (msg != nil) {
+      if (msg.type == "toast") {
+        if (msg.body != nil) {
+          Mk:toast(msg.body)
+        } elif (msg.text != nil) {
+          Mk:toast(msg.text)
+        }
+      } elif (msg.type == "notify") {
+        if (msg.body != nil) {
+          if (msg.header != nil) {
+            if (msg.icon != nil) {
+              Mk:api("notifications/create", {
+                header: msg.header
+                body: msg.body
+                icon: msg.icon
+              })
+            } else {
+              Mk:api("notifications/create", {
+                header: msg.header
+                body: msg.body
+              })
+            }
+          } else {
+            if (msg.icon != nil) {
+              Mk:api("notifications/create", {
+                body: msg.body
+                icon: msg.icon
+              })
+            } else {
+              Mk:api("notifications/create", {
+                body: msg.body
+              })
+            }
+          }
+        }
+      } elif (msg.type == "dialog") {
+        if (msg.title != nil) {
+          if (msg.body != nil) {
+            if (msg.kind != nil) {
+              Mk:dialog(
+                msg.title
+                msg.body
+                msg.kind
+              )
+            } else {
+              Mk:dialog(
+                msg.title
+                msg.body
+                "info"
+              )
+            }
+          }
+        }
+      } elif (msg.type == "confirm") {
+        if (msg.title != nil) {
+          if (msg.body != nil) {
+            if (msg.url != nil) {
+              let kind = "question"
 
-@showToast(msg) {
-  if (msg.body != null) {
-    Mk:toast(msg.body)
-  } elif (msg.text != null) {
-    Mk:toast(msg.text)
-  }
-}
+              if (msg.kind != nil) {
+                kind = msg.kind
+              }
 
-@showDialog(msg) {
-  if (msg.title == null) return
-  if (msg.body == null) return
+              let ok = Mk:confirm(
+                msg.title
+                msg.body
+                kind
+              )
 
-  Mk:dialog(
-    msg.title
-    msg.body
-    msg.kind ?? "info"
-  )
-}
-
-@showConfirm(msg) {
-  if (msg.title == null) return
-  if (msg.body == null) return
-  if (msg.url == null) return
-
-  let ok = Mk:confirm(
-    msg.title
-    msg.body
-    msg.kind ?? "question"
-  )
-
-  if (ok) {
-    Plugin:open_url(withOk(msg.url))
-  }
-}
-
-ws.onMessage = @(raw) {
-  let msg = safeParse(raw)
-
-  if (msg == null) return
-  if (msg.type == null) return
-
-  if (msg.type == "notify") {
-    showNotify(msg)
-  } elif (msg.type == "toast") {
-    showToast(msg)
-  } elif (msg.type == "dialog") {
-    showDialog(msg)
-  } elif (msg.type == "confirm") {
-    showConfirm(msg)
+              if (ok) {
+                Plugin:open_url(withOk(msg.url))
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
