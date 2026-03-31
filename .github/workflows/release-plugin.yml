@@ -38,6 +38,23 @@ jobs:
 
           raw = script.read_text(encoding="utf-8")
           src_lf = raw.replace("\r\n", "\n").replace("\r", "\n")
+
+          dev_marker = 'version: "dev"'
+          if dev_marker not in src_lf:
+              raise SystemExit(
+                  f"Release build expected {dev_marker!r} in notifications.aiscript "
+                  "(replace-on-release)."
+              )
+
+          def aiscript_escape(s: str) -> str:
+              return s.replace("\\", "\\\\").replace('"', '\\"')
+
+          src_lf = src_lf.replace(
+              dev_marker,
+              f'version: "{aiscript_escape(tag)}"',
+              1,
+          )
+
           digest = hashlib.sha512(src_lf.encode("utf-8")).hexdigest()
           api_url = f"https://github.com/{repo}/releases/download/{tag}/plugin.json"
           encoded = urllib.parse.quote(api_url, safe="")
