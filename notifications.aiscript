@@ -1,7 +1,7 @@
 /// @0.12.4
 ### {
   name: "Fediverse Notifications"
-  version: "1.0.0"
+  version: "dev"
   author: "CoreTalk"
   description: "Receives websocket messages from hooks.<host> and shows them as Misskey toasts, notifications, dialogs, or confirms."
   permissions: ["write:notifications"]
