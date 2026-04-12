@@ -1,114 +1,109 @@
 /// @0.12.4
 ### {
-  name: "Fediverse Notifications"
-  version: "dev"
-  author: "CoreTalk"
-  description: "Receives websocket messages from hooks.<host> and shows them as Misskey toasts, notifications, dialogs, or confirms."
-  permissions: ["write:notifications"]
+	name: "Fediverse Notifications"
+	version: "dev"
+	author: "CoreTalk"
+	description: "Receives websocket messages from hooks.<host> and shows them as Misskey toasts, notifications, dialogs, or confirms."
+	permissions: ["write:notifications"]
 }
 
 @buildHooksWs(url) {
-  if (url.startsWith("https://")) {
-    let noProto = url.replace("https://", "")
-    let host = noProto.split("/")[0]
-    return "wss://hooks." + host
-  } else {
-    return nil
-  }
+	let host = url.replace("https://", "").split("/")[0]
+	return "wss://hooks." + host
 }
 
 @withOk(url) {
-  if (url.incl("?")) {
-    return url + "&ok=1"
-  } else {
-    return url + "?ok=1"
-  }
+	if (url.incl("?")) {
+		return url + "&ok=1"
+	} else {
+		return url + "?ok=1"
+	}
 }
 
 let hooksUrl = buildHooksWs(SERVER_URL)
 
 if (hooksUrl != nil) {
-  let ws = WebSocket(hooksUrl + "/ws/" + USER_USERNAME)
+	let ws = WebSocket(hooksUrl + "/ws/" + USER_USERNAME)
 
-  ws.onMessage = @(raw) {
-    let msg = Json:parse(raw)
+	ws.onMessage = @(raw) {
+		let msg = Json:parse(raw)
 
-    if (msg != nil) {
-      if (msg.type == "toast") {
-        if (msg.body != nil) {
-          Mk:toast(msg.body)
-        } elif (msg.text != nil) {
-          Mk:toast(msg.text)
-        }
-      } elif (msg.type == "notify") {
-        if (msg.body != nil) {
-          if (msg.header != nil) {
-            if (msg.icon != nil) {
-              Mk:api("notifications/create", {
-                header: msg.header
-                body: msg.body
-                icon: msg.icon
-              })
-            } else {
-              Mk:api("notifications/create", {
-                header: msg.header
-                body: msg.body
-              })
-            }
-          } else {
-            if (msg.icon != nil) {
-              Mk:api("notifications/create", {
-                body: msg.body
-                icon: msg.icon
-              })
-            } else {
-              Mk:api("notifications/create", {
-                body: msg.body
-              })
-            }
-          }
-        }
-      } elif (msg.type == "dialog") {
-        if (msg.title != nil) {
-          if (msg.body != nil) {
-            if (msg.kind != nil) {
-              Mk:dialog(
-                msg.title
-                msg.body
-                msg.kind
-              )
-            } else {
-              Mk:dialog(
-                msg.title
-                msg.body
-                "info"
-              )
-            }
-          }
-        }
-      } elif (msg.type == "confirm") {
-        if (msg.title != nil) {
-          if (msg.body != nil) {
-            if (msg.url != nil) {
-              let kind = "question"
+		if (msg != nil) {
+			if (msg.type == "toast") {
+				if (msg.body != nil) {
+					Mk:toast(msg.body)
+				} elif (msg.text != nil) {
+					Mk:toast(msg.text)
+				}
+			} elif (msg.type == "notify") {
+				if (msg.body != nil) {
+					if (msg.header != nil) {
+						if (msg.icon != nil) {
+							Mk:api("notifications/create", {
+								header: msg.header
+								body: msg.body
+								icon: msg.icon
+							})
+						} else {
+							Mk:api("notifications/create", {
+								header: msg.header
+								body: msg.body
+							})
+						}
+					} else {
+						if (msg.icon != nil) {
+							Mk:api("notifications/create", {
+								body: msg.body
+								icon: msg.icon
+							})
+						} else {
+							Mk:api("notifications/create", {
+								body: msg.body
+							})
+						}
+					}
+				}
+			} elif (msg.type == "dialog") {
+				if (msg.title != nil) {
+					if (msg.body != nil) {
+						if (msg.kind != nil) {
+							Mk:dialog(
+								msg.title
+								msg.body
+								msg.kind
+							)
+						} else {
+							Mk:dialog(
+								msg.title
+								msg.body
+								"info"
+							)
+						}
+					}
+				}
+			} elif (msg.type == "confirm") {
+				if (msg.title != nil) {
+					if (msg.body != nil) {
+						if (msg.url != nil) {
+							let kind = "question"
 
-              if (msg.kind != nil) {
-                kind = msg.kind
-              }
+							if (msg.kind != nil) {
+								kind = msg.kind
+							}
 
-              let ok = Mk:confirm(
-                msg.title
-                msg.body
-                kind
-              )
+							let ok = Mk:confirm(
+								msg.title
+								msg.body
+								kind
+							)
 
-              if (ok) {
-                Plugin:open_url(withOk(msg.url))
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+							if (ok) {
+								Plugin:open_url(withOk(msg.url))
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
